@@ -27,4 +27,5 @@ pub mod private {
     pub use core::fmt::Debug;
     pub use core::hash::Hash;
     pub use core::marker::Copy;
+    pub use core::result::Result;
 }
