@@ -17,10 +17,10 @@ pub use self::freeze::*;
 //    }
 //}
 
-//memcond! {
-//    const fn is_non_empty(vec: &Vec<u8>) -> bool {
-//        !vec.is_empty()
-//    }
-//
-//    pub struct NonEmptyVec;
-//}
+memcond! {
+    const fn is_non_empty(inner: &alloc::vec::Vec<u8>) -> bool {
+        !inner.is_empty()
+    }
+
+    pub struct NonEmptyVec;
+}

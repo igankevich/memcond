@@ -36,6 +36,8 @@ impl_freeze! {
     i64
     i128
     isize
+    f32
+    f64
     core::num::NonZero<char>
     core::num::NonZero<u8>
     core::num::NonZero<u16>
