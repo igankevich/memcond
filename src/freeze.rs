@@ -1,3 +1,12 @@
+/// This trait marks types that are internally immutable.
+///
+/// Has the same meaning as [`Freeze`](core::marker::Freeze) but can be implemented for types
+/// outside the standard library.
+///
+/// # Safety
+///
+/// It's safe to implement this trait for any type that is _not_ internally mutable,
+/// i.e. can't be changed through an immutable reference.
 pub unsafe trait Freeze {}
 
 macro_rules! impl_freeze {
@@ -6,17 +15,22 @@ macro_rules! impl_freeze {
     };
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(feature = "alloc")]
 macro_rules! impl_freeze_1 {
     ($($type:ty)+) => {
-        $(unsafe impl<T: Freeze> Freeze for $type {})+
+        $(
+            //#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+            unsafe impl<T: Freeze> Freeze for $type {}
+        )+
     };
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg(feature = "alloc")]
 macro_rules! impl_freeze_2 {
     ($($type:ty)+) => {
-        $(unsafe impl<T0: Freeze, T1: Freeze> Freeze for $type {})+
+        $(
+            unsafe impl<T0: Freeze, T1: Freeze> Freeze for $type {}
+        )+
     };
 }
 
