@@ -1,0 +1,15 @@
+---
+name: CI
+on: [push]
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features
+      - name: Cargo test
+        run: cargo test --workspace --all-targets --all-features
+      - name: Compile-time tests
+        run: ./ci/compile-time-tests.sh
