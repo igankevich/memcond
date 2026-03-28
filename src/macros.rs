@@ -29,6 +29,7 @@ macro_rules! deref {
 
             #[inline]
             fn deref(&self) -> &Self::Target {
+                self.do_check();
                 &self.$arg_name
             }
         }
@@ -80,6 +81,10 @@ macro_rules! derive {
     };
 }
 
+/// Same as [`memcond`](crate::memcond) but expects condition arguments to be passed by reference.
+///
+/// Additionally it generates `fn into_inner() -> Args` method which drops the structure
+/// and returns condition arguments that were used to initialize it.
 #[macro_export]
 macro_rules! memcond_ref {
     (
@@ -105,8 +110,9 @@ macro_rules! memcond_ref {
                 }
 
                 #[inline(always)]
-                const fn do_check(&self) -> bool {
-                    Self::check($(&self.$arg_name),+)
+                const fn do_check(&self) {
+                    $crate::private::core::debug_assert!(Self::check($(&self.$arg_name),+));
+                    unsafe { $crate::private::core::hint::assert_unchecked(Self::check($(&self.$arg_name),+)) };
                 }
 
                 #[inline]
@@ -126,8 +132,7 @@ macro_rules! memcond_ref {
                     #[inline]
                     #[track_caller]
                     pub const fn $arg_name(&self) -> &$arg_type {
-                        $crate::private::core::debug_assert!(self.do_check());
-                        unsafe { $crate::private::core::hint::assert_unchecked(self.do_check()) };
+                        self.do_check();
                         &self.$arg_name
                     }
                 )+
@@ -135,8 +140,7 @@ macro_rules! memcond_ref {
                 #[inline]
                 #[track_caller]
                 pub fn into_inner(self) -> $crate::return_type!($(($arg_type))+) {
-                    $crate::private::core::debug_assert!(self.do_check());
-                    unsafe { $crate::private::core::hint::assert_unchecked(self.do_check()) };
+                    self.do_check();
                     $crate::return_expr!($((self.$arg_name))+)
                 }
             }
@@ -144,10 +148,39 @@ macro_rules! memcond_ref {
             $crate::deref!($struct $(($arg_name: $arg_type))+);
         }
 
-        $visibility use self::$cond::$struct;
+        $visibility use $cond::$struct;
     };
 }
 
+/// This macro generates a struct that checks the provided condition in the constructor
+/// and enforces this condition via [`assert_unchecked`](core::hint::assert_unchecked)
+/// in each getter.
+///
+/// The following methods are generated:
+/// - `const fn new(args) -> Result<Self, Args>`. This is a constructor that checks the condition
+///   and returns the provided arguments if it doesn't hold.
+/// - `const fn arg0(self) -> Arg0`. This is a getter; it's generated for each argument. The getter
+///   enforces the condition via `assert_unchecked`.
+///
+/// If there is only one argument, [`Deref`](core::ops::Deref) implementation is generated as well.
+///
+/// In addition to that the following derive macros from the standard library can be applied to
+/// the structure: `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Debug`.
+/// In general derive macros are unsafe in this context because they have access to the fields.
+/// If you need some other trait implementations (e.g. `Serialize`, `Deserialize`), it's best to implement them
+/// manually via `impl ... for ...`.
+///
+/// # Safety
+///
+/// - The generated structure is placed in its own module. This prevents implementations from
+///   accessing its fields.
+/// - The condition is written as `const fn` which prevents it from using global internally mutable variables.
+/// - The condition forbids using unsafe code inside.
+/// - Condition variables are internally immutable. This is enforced via [`Freeze`](crate::Freeze)
+///   trait.
+///
+/// So, it shouldn't be possible to make the condition false after it was verified in the
+/// constructor and all the arguments were safely placed in the struct.
 #[macro_export]
 macro_rules! memcond {
     (
@@ -172,8 +205,9 @@ macro_rules! memcond {
                 pub const fn check($($arg_name: $arg_type),+) -> bool $body
 
                 #[inline(always)]
-                const fn do_check(&self) -> bool {
-                    Self::check($(self.$arg_name),+)
+                const fn do_check(&self) {
+                    $crate::private::core::debug_assert!(Self::check($(self.$arg_name),+));
+                    unsafe { $crate::private::core::hint::assert_unchecked(Self::check($(self.$arg_name),+)) };
                 }
 
                 #[inline]
@@ -193,8 +227,7 @@ macro_rules! memcond {
                     #[inline]
                     #[track_caller]
                     pub const fn $arg_name(self) -> $arg_type {
-                        $crate::private::core::debug_assert!(self.do_check());
-                        unsafe { $crate::private::core::hint::assert_unchecked(self.do_check()) };
+                        self.do_check();
                         self.$arg_name
                     }
                 )+
@@ -203,6 +236,6 @@ macro_rules! memcond {
             $crate::deref!($struct $(($arg_name: $arg_type))+);
         }
 
-        $visibility use self::$cond::$struct;
+        $visibility use $cond::$struct;
     };
 }

@@ -2,6 +2,15 @@
 name = "memcond"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+homepage = "https://github.com/igankevich/memcond"
+repository = "https://github.com/igankevich/memcond"
+documentation = "https://docs.rs/memcond"
+readme = "README.md"
+description = "Assertion memoizer. Safely bring the outcome of an assertion next the code where it is actually useful."
+keywords = ["base32", "crockford", "fs"]
+categories = ["encoding", "filesystem", "no-std"]
+include = ["**/*.rs", "Cargo.toml", "README.md"]
 
 [features]
 default = ["std"]
