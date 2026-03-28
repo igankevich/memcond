@@ -7,6 +7,7 @@ memcond! {
         !inner.is_empty()
     }
 
+    #[derive(Clone)]
     pub struct NonEmptyVec;
 }
 

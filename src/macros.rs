@@ -25,7 +25,7 @@ macro_rules! ret {
 #[macro_export]
 macro_rules! deref {
     ($outer_type:ident $inner_name:ident: $inner_type:ty) => {
-        impl core::ops::Deref for $outer_type {
+        impl $crate::private::core::ops::Deref for $outer_type {
             type Target = $inner_type;
 
             #[inline]
@@ -39,7 +39,47 @@ macro_rules! deref {
     };
 }
 
-// TODO whitelist derives
+#[doc(hidden)]
+#[macro_export]
+macro_rules! derive {
+    (
+        () // Not yet checked attributes.
+        ($($attr:ident)*) // Already checked attributes.
+        ($outer_type:ident) // The name of the struct.
+        $(($inner_name:ident $inner_type:ty))+ // Struct fields.
+    ) => {
+        #[derive($($crate::private::$attr,)*)]
+        pub struct $outer_type {
+            $($inner_name: $inner_type,)+
+        }
+    };
+    // The rest of the macro checks which derive implementations are safe to use with the generated struct.
+    // We can only use those implementation that doesn't make our precondition fail.
+    ((Clone $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Clone) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((Copy $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Copy) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((PartialEq $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* PartialEq) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((Eq $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Eq) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((PartialOrd $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* PartialOrd) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((Ord $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Ord) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((Hash $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Hash) ($outer_type) $(($inner_name $inner_type))+}
+    };
+    ((Debug $($attr:ident)*) ($($checked_attr:ident)*) ($outer_type:ident) $(($inner_name:ident $inner_type:ty))+) => {
+        $crate::derive!{($($attr)*) ($($checked_attr)* Debug) ($outer_type) $(($inner_name $inner_type))+}
+    };
+}
 
 #[macro_export]
 macro_rules! memcond {
@@ -48,6 +88,7 @@ macro_rules! memcond {
             $body:stmt
         }
 
+        $(#[derive($($attr:ident$(,)?)*)])*
         $visibility:vis struct $outer_type:ident;
     ) => {
         mod $cond {
@@ -61,12 +102,12 @@ macro_rules! memcond {
                 $body
             }
 
-            #[derive(Debug)]
-            pub struct $outer_type {
-                $($inner_name: $inner_type,)+
+            $crate::derive!{
+                ($($($attr)*)*) () ($outer_type) $(($inner_name $inner_type))+
             }
 
             impl $outer_type {
+                // TODO expose as static function
                 #[inline(always)]
                 const fn check(&self) -> bool {
                     check($(&self.$inner_name,)+)
@@ -90,18 +131,18 @@ macro_rules! memcond {
                     #[track_caller]
                     pub const fn $inner_name(&self) -> &$inner_type {
                         debug_assert!(self.check());
-                        unsafe { core::hint::assert_unchecked(self.check()) };
+                        unsafe { $crate::private::core::hint::assert_unchecked(self.check()) };
                         &self.$inner_name
                     }
                 )+
 
-                #[inline]
-                #[track_caller]
-                pub fn into_inner(self) -> $crate::ret!(@return_type $($inner_type,)+) {
-                    debug_assert!(self.check());
-                    unsafe { core::hint::assert_unchecked(self.check()) };
-                    $crate::ret!(@return_expr $(self.$inner_name,)+)
-                }
+                    #[inline]
+                    #[track_caller]
+                    pub fn into_inner(self) -> $crate::ret!(@return_type $($inner_type,)+) {
+                        debug_assert!(self.check());
+                        unsafe { $crate::private::core::hint::assert_unchecked(self.check()) };
+                        $crate::ret!(@return_expr $(self.$inner_name,)+)
+                    }
             }
 
             $crate::deref!($outer_type $($inner_name: $inner_type)+);
@@ -118,6 +159,7 @@ macro_rules! memcond_copy {
             $body:stmt
         }
 
+        $(#[derive($($attr:ident$(,)?)*)])*
         $visibility:vis struct $outer_type:ident;
     ) => {
         mod $cond {
@@ -131,9 +173,8 @@ macro_rules! memcond_copy {
                 $body
             }
 
-            #[derive(Debug, Clone, Copy)]
-            pub struct $outer_type {
-                $($inner_name: $inner_type,)+
+            $crate::derive!{
+                ($($($attr)*)*) (Clone Copy) ($outer_type) $(($inner_name $inner_type))+
             }
 
             impl $outer_type {
@@ -160,7 +201,7 @@ macro_rules! memcond_copy {
                     #[track_caller]
                     pub const fn $inner_name(self) -> $inner_type {
                         debug_assert!(self.check());
-                        unsafe { core::hint::assert_unchecked(self.check()) };
+                        unsafe { $crate::private::core::hint::assert_unchecked(self.check()) };
                         self.$inner_name
                     }
                 )+

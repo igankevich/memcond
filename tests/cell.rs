@@ -9,6 +9,7 @@ memcond_copy! {
         address % 4096 == 0 && CELL.replace(321) == 123
     }
 
+    #[derive(PartialEq, Eq)]
     pub struct PageAddress;
 }
 
